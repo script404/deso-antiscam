@@ -18,12 +18,12 @@ BODY = "Scam"
 # load our json database
 os.system("cls")
 print("Loading json database\033[K")
-with open('databases.json', 'r') as file:
+with open('database.json', 'r') as file:
     scammers = json.load(file)
 
 # Handle any cleanup here
 def handler(signal_received, frame):
-    with open('databases.json', 'w') as file:
+    with open('database.json', 'w') as file:
         json.dump(scammers, file, indent=4)
     print("Saving json database\033[K")
     sys.exit(0)
