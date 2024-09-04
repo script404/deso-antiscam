@@ -1,54 +1,68 @@
+#! /usr/local/bin/python3
+
+from datetime import datetime
+import requests
 import os
 import signal
 import sys
 import time
-import jsonc
+import json
 import deso
-from datetime import datetime
 
-PUBLIC_KEY = 'PUBLIC_KEY_HERE'
-DERIVED_SEED_HEX = 'DERIVED_SEED_HEX'
-DERIVED_PUBLIC_KEY = 'DERIVED_PUBLIC_KEY'
-
-desoPosts = deso.Posts()
-desoUser = deso.User(nodeURL="https://node.deso.com/api/v0/", readerPublicKey=PUBLIC_KEY)
-
+NODE_URL = "https://node.deso.org/api/v0/"
+PUBLIC_KEY = ""
+DERIVED_SEED_HEX = ""
+DERIVED_PUBLIC_KEY = ""
 BODY = "Scam"
 
 # load our json database
-with open('database.json', 'r') as file:
-    scammers = jsonc.load(file)
+os.system("cls")
+print("Loading json database\033[K")
+with open('databases.json', 'r') as file:
+    scammers = json.load(file)
 
 # Handle any cleanup here
 def handler(signal_received, frame):
-    with open('database.json', 'w') as file:
-        jsonc.dump(scammers, file, indent=4)
-    print("Saving json database")
+    with open('databases.json', 'w') as file:
+        json.dump(scammers, file, indent=4)
+    print("Saving json database\033[K")
     sys.exit(0)
 
 # Register the handler for SIGINT
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, handler)
-    os.system("cls")
-    print('Running. Press Ctrl+C to exit.')
-    print("Searching for scam posts ...")
+
+def getFollowers(numToFetch = 999):
+    global FOLLOWERS
+    api = f"{NODE_URL}get-follows-stateless"
+    data = {
+        "PublicKeyBase58Check": PUBLIC_KEY,
+        "NumToFetch": numToFetch # how do we do all ?
+    }
+    return requests.post(api, json=data).json()["PublicKeyToProfileEntry"]
 
 try:
+    print(f"Searching \033[32m{len(scammers)}\033[0m users for scam posts.")
+    desoPosts = deso.Posts(nodeURL=NODE_URL)
     while True:
         for scammer in scammers:
             for key, value in scammer.items():
                 if value != "" and 1 == 1: # ignore if post is hidden
-                    POST_HASH_HEX = desoPosts.getPostsForPublicKey(publicKey=key, numToFetch=1).json()["Posts"][0]["PostHashHex"]
-                    LAST_POST_HASH_HEX = value
-
-                    if POST_HASH_HEX != LAST_POST_HASH_HEX:
-                        desoSocial = deso.Social(publicKey=PUBLIC_KEY, derivedPublicKey=DERIVED_PUBLIC_KEY, derivedSeedHex=DERIVED_SEED_HEX)
-                        res = desoSocial.submitPost(parentStakeID=POST_HASH_HEX, body=BODY, isHidden=False)
-                        print(f"{datetime.now().strftime('%H:%M:%S %p')} Scam found @ PostHexHash: {POST_HASH_HEX}")
-                        scammer[key] = POST_HASH_HEX
-        time.sleep(5)
-        pass # not sure
-# not sure
+                    try:
+                        POST_HASH_HEX = desoPosts.getPostsForPublicKey(publicKey=key, numToFetch=1).json()["Posts"][0]["PostHashHex"]
+                        LAST_POST_HASH_HEX = value
+                        if POST_HASH_HEX != LAST_POST_HASH_HEX:
+                            try:
+                                desoSocial = deso.Social(publicKey=PUBLIC_KEY, derivedPublicKey=DERIVED_PUBLIC_KEY, derivedSeedHex=DERIVED_SEED_HEX)
+                                res = desoSocial.submitPost(parentStakeID=POST_HASH_HEX, body=BODY, isHidden=False)
+                                print(f"\033[94m[{datetime.now().strftime('%H:%M:%S %p')}]\033[0m {POST_HASH_HEX}\033[K")
+                                scammer[key] = POST_HASH_HEX
+                            except Exception as e:
+                                print(f"\033[37;41m{e}\033[0m\033[K")
+                    except Exception as e:
+                        print(f"\033[37;41m{e}\033[0m\033[K")
+                        continue
+        print("\033[?25lRunning. Press Ctrl+C to exit.\033[K", end="\r")
+        time.sleep(2)
 except KeyboardInterrupt:
     print('KeyboardInterrupt caught. Exiting...')
-
